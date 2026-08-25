@@ -1,11 +1,13 @@
 ---
-// Bookmarks component (scaffold).
+// Bookmarks component.
 //
 // The markup below renders during the static build. The dynamic behavior —
 // adding a bookmark, generating a short slug, and persisting to the browser —
-// must run ONLY in the client-side <script> boundary at the bottom of this
-// file. Astro runs that script in the browser, never during the build, so
-// browser-only APIs are safe there.
+// runs ONLY in the client-side <script> boundary at the bottom of this file.
+// Astro runs that script in the browser, never during the build, so
+// browser-only APIs (like localStorage) are safe there. The pure helpers it
+// relies on live in src/lib/bookmarks.ts, which has no browser dependencies
+// and is unit-tested separately (src/lib/bookmarks.test.ts).
 ---
 <form id="add-bookmark">
   <div class="field">
@@ -41,58 +43,50 @@
   // CLIENT-SIDE BOUNDARY — runs in the browser only.
   //
   // Because this code lives in a client <script>, browser storage APIs are
-  // safe to use here without breaking the static build.
+  // safe to use here without breaking the static build. All the pure logic
+  // (URL normalizing, slug generation, storage parsing, formatting) is
+  // imported from ../lib/bookmarks so it can be unit-tested without a
+  // browser.
+  import {
+    STORAGE_KEY,
+    generateSlug,
+    normalizeUrl,
+    parseStoredBookmarks,
+    type Bookmark,
+  } from '../lib/bookmarks';
 
-  const STORAGE_KEY = 'mona-bookmarks';
+  const form = document.getElementById('add-bookmark') as HTMLFormElement | null;
+  const urlInput = document.getElementById('url') as HTMLInputElement | null;
+  const emptyState = document.getElementById('empty-state') as HTMLElement | null;
+  const listHeader = document.getElementById('list-header') as HTMLElement | null;
+  const list = document.getElementById('bookmark-list') as HTMLElement | null;
+  const clearAllButton = document.getElementById('clear-all') as HTMLButtonElement | null;
 
-  const form = document.getElementById('add-bookmark');
-  const urlInput = document.getElementById('url');
-  const emptyState = document.getElementById('empty-state');
-  const listHeader = document.getElementById('list-header');
-  const list = document.getElementById('bookmark-list');
-  const clearAllButton = document.getElementById('clear-all');
-
-  /** @typedef {{ url: string, slug: string }} Bookmark */
-
-  /** @returns {Bookmark[]} */
-  function loadBookmarks() {
+  /** Reads and validates the saved bookmarks. Never throws. */
+  function loadBookmarks(): Bookmark[] {
+    let raw: string | null = null;
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      const parsed = raw ? JSON.parse(raw) : [];
-      return Array.isArray(parsed) ? parsed : [];
+      raw = localStorage.getItem(STORAGE_KEY);
     } catch {
+      // Storage can be unavailable (private browsing, disabled, quota, etc).
       return [];
     }
+    return parseStoredBookmarks(raw);
   }
 
-  /** @param {Bookmark[]} bookmarks */
-  function saveBookmarks(bookmarks) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(bookmarks));
-  }
-
-  /** @param {Bookmark[]} bookmarks */
-  function makeSlug(bookmarks) {
-    const existing = new Set(bookmarks.map((b) => b.slug));
-    let slug;
-    do {
-      slug = `mona-${Math.random().toString(36).slice(2, 6)}`;
-    } while (existing.has(slug));
-    return slug;
-  }
-
-  function normalizeUrl(value) {
-    const trimmed = value.trim();
-    if (!trimmed) return null;
+  /** Persists the bookmarks list. Silently no-ops if storage is unavailable. */
+  function saveBookmarks(bookmarks: Bookmark[]): void {
     try {
-      // Allow "example.com" as shorthand by defaulting to https://.
-      const withScheme = /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(trimmed) ? trimmed : `https://${trimmed}`;
-      return new URL(withScheme).toString();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(bookmarks));
     } catch {
-      return null;
+      // Ignore — e.g. storage full or disabled. The in-memory render still
+      // reflects the attempted change for this page view.
     }
   }
 
-  function render() {
+  function render(): void {
+    if (!list || !emptyState || !listHeader) return;
+
     const bookmarks = loadBookmarks();
     list.innerHTML = '';
 
@@ -110,6 +104,13 @@
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
       link.textContent = bookmark.url;
+
+      // Exact visible separator between the URL and the slug, e.g.
+      // "https://www.example.com :: mona-7fk2".
+      const separator = document.createElement('span');
+      separator.className = 'separator';
+      separator.setAttribute('aria-hidden', 'true');
+      separator.textContent = ' :: ';
 
       const slugBadge = document.createElement('span');
       slugBadge.className = 'slug';
@@ -132,34 +133,44 @@
         }
       });
 
-      li.append(link, slugBadge, copyButton);
+      li.append(link, separator, slugBadge, copyButton);
       list.append(li);
     }
   }
 
   form?.addEventListener('submit', (event) => {
-    event.preventDefault(); // keep this — stops the page from reloading
+    event.preventDefault(); // keep this — stops the page from reloading, even if something below throws
 
-    const normalized = normalizeUrl(urlInput?.value ?? '');
-    if (!normalized) {
-      urlInput?.setCustomValidity('Please enter a valid URL.');
-      urlInput?.reportValidity();
-      return;
+    try {
+      const normalized = normalizeUrl(urlInput?.value ?? '');
+      if (!normalized) {
+        urlInput?.setCustomValidity('Please enter a valid URL.');
+        urlInput?.reportValidity();
+        return;
+      }
+      urlInput?.setCustomValidity('');
+
+      const bookmarks = loadBookmarks();
+      const slug = generateSlug(bookmarks.map((b) => b.slug));
+      bookmarks.push({ url: normalized, slug });
+      saveBookmarks(bookmarks);
+      render();
+
+      form.reset();
+      urlInput?.focus();
+    } catch {
+      // Defensive: never let an unexpected error bubble up to a native
+      // submit/page reload. The URL the user typed is simply not saved.
     }
-    urlInput?.setCustomValidity('');
-
-    const bookmarks = loadBookmarks();
-    bookmarks.push({ url: normalized, slug: makeSlug(bookmarks) });
-    saveBookmarks(bookmarks);
-    render();
-
-    form.reset();
-    urlInput?.focus();
   });
 
   clearAllButton?.addEventListener('click', () => {
     if (!confirm('Remove all saved bookmarks?')) return;
-    localStorage.removeItem(STORAGE_KEY);
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // Ignore — storage may already be unavailable.
+    }
     render();
   });
 
