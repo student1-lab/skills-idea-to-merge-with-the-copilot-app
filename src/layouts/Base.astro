@@ -50,9 +50,12 @@ const { title = "Mona's Bookmark Manager App" } = Astro.props;
       :root {
         color-scheme: light dark;
         --accent: #3b82f6;
+        --accent-strong: #2563eb;
         --border: #8883;
         --muted: color-mix(in srgb, currentColor 60%, transparent);
         --radius: 0.6rem;
+        --surface: color-mix(in srgb, currentColor 4%, transparent);
+        --shadow: 0 1px 2px color-mix(in srgb, currentColor 6%, transparent), 0 8px 24px color-mix(in srgb, currentColor 5%, transparent);
         --font-body: 'Monaspace Neon', ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
         --font-head: 'Monaspace Xenon', 'Monaspace Neon', ui-monospace, monospace;
       }
@@ -63,49 +66,69 @@ const { title = "Mona's Bookmark Manager App" } = Astro.props;
         max-width: 40rem;
         margin: 0 auto;
         padding: 2.5rem 1.25rem 4rem;
+        background:
+          radial-gradient(60rem 30rem at 50% -10%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 65%);
       }
       header { margin-bottom: 1.5rem; }
-      h1 { margin: 0 0 0.25rem; font-size: 1.75rem; font-family: var(--font-head); letter-spacing: -0.01em; }
+      h1 {
+        margin: 0 0 0.35rem;
+        font-size: 1.85rem;
+        font-family: var(--font-head);
+        letter-spacing: -0.01em;
+        background: linear-gradient(90deg, currentColor, var(--accent-strong));
+        -webkit-background-clip: text;
+        background-clip: text;
+      }
       .tagline { margin: 0; color: var(--muted); }
 
       form {
         display: flex;
         flex-wrap: wrap;
-        gap: 0.5rem;
+        gap: 0.65rem;
         align-items: end;
-        margin: 1.5rem 0 0.5rem;
+        margin: 1.75rem 0 0.5rem;
+        padding: 1.1rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: calc(var(--radius) + 0.2rem);
+        box-shadow: var(--shadow);
       }
       .field { display: flex; flex-direction: column; gap: 0.35rem; flex: 1 1 16rem; }
       label { font-size: 0.85rem; font-weight: 600; }
       input {
-        padding: 0.6rem 0.7rem;
+        padding: 0.65rem 0.75rem;
         border: 1px solid var(--border);
         border-radius: var(--radius);
         font: inherit;
-        background: transparent;
+        background: color-mix(in srgb, currentColor 2%, transparent);
         color: inherit;
+        transition: border-color 0.15s ease, background 0.15s ease;
       }
+      input:hover { border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); }
       input:focus-visible,
       button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
       button {
-        padding: 0.6rem 1rem;
+        padding: 0.65rem 1.1rem;
         border: 1px solid transparent;
         border-radius: var(--radius);
-        background: var(--accent);
+        background: linear-gradient(180deg, var(--accent), var(--accent-strong));
         color: #fff;
         font: inherit;
         font-weight: 600;
         cursor: pointer;
+        box-shadow: 0 1px 0 color-mix(in srgb, #000 10%, transparent);
+        transition: filter 0.15s ease, transform 0.05s ease;
       }
-      button:hover { filter: brightness(1.05); }
-      .hint { margin: 0 0 1.5rem; font-size: 0.8rem; color: var(--muted); }
+      button:hover { filter: brightness(1.08); }
+      button:active { transform: translateY(1px); }
+      .hint { margin: 0 0 1.75rem; font-size: 0.8rem; color: var(--muted); }
 
       #list-header {
         display: flex;
         align-items: center;
         justify-content: space-between;
         gap: 0.75rem;
-        margin: 0.5rem 0;
+        margin: 0.5rem 0 0.75rem;
       }
       .list-title { margin: 0; font-size: 1rem; font-family: var(--font-head); }
       .clear {
@@ -115,26 +138,39 @@ const { title = "Mona's Bookmark Manager App" } = Astro.props;
         padding: 0.35rem 0.7rem;
         font-size: 0.8rem;
         font-weight: 500;
+        box-shadow: none;
       }
-      .clear:hover { border-color: currentColor; }
+      .clear:hover { border-color: currentColor; filter: none; background: var(--surface); }
 
-      ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.5rem; }
+      ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.6rem; }
       li.bookmark {
         display: flex;
         flex-wrap: wrap;
         align-items: center;
-        gap: 0.5rem 0.75rem;
-        padding: 0.75rem 0.9rem;
+        gap: 0.35rem 0.5rem;
+        padding: 0.8rem 1rem;
+        background: var(--surface);
         border: 1px solid var(--border);
         border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        transition: border-color 0.15s ease, transform 0.1s ease;
       }
-      .bookmark .url { flex: 1 1 12rem; overflow-wrap: anywhere; }
+      li.bookmark:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); transform: translateY(-1px); }
+      .bookmark .url {
+        flex: 1 1 12rem;
+        overflow-wrap: anywhere;
+        color: inherit;
+        text-decoration-color: color-mix(in srgb, currentColor 30%, transparent);
+      }
+      .bookmark .url:hover { text-decoration-color: currentColor; }
+      .bookmark .separator { color: var(--muted); }
       .bookmark .slug {
         font-family: ui-monospace, "SF Mono", monospace;
         font-size: 0.85rem;
-        padding: 0.15rem 0.5rem;
+        padding: 0.2rem 0.6rem;
         border-radius: 999px;
         background: color-mix(in srgb, var(--accent) 18%, transparent);
+        color: var(--accent-strong);
       }
       .bookmark .copy {
         background: transparent;
@@ -143,17 +179,19 @@ const { title = "Mona's Bookmark Manager App" } = Astro.props;
         padding: 0.3rem 0.6rem;
         font-size: 0.8rem;
         font-weight: 500;
+        box-shadow: none;
       }
+      .bookmark .copy:hover { border-color: currentColor; filter: none; }
       .empty {
         margin: 0;
-        padding: 1.5rem;
+        padding: 1.75rem;
         text-align: center;
         color: var(--muted);
         border: 1px dashed var(--border);
         border-radius: var(--radius);
       }
 
-      footer { margin-top: 2.5rem; font-size: 0.8rem; color: var(--muted); }
+      footer { margin-top: 3rem; font-size: 0.8rem; color: var(--muted); text-align: center; }
     </style>
   </head>
   <body>
